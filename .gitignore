@@ -1,0 +1,8 @@
+*.zip
+*.pdf
+/venv/
+venv/
+
+.idea/
+
+Images/
