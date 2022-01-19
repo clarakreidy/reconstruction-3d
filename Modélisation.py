@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 from scipy import ndimage
 import glob
 
+
 def CameraCalibration():
     # Set termination criteria. We stop either when an accuracy is reached or when
     # we have finished a certain number of iterations.
@@ -18,16 +19,17 @@ def CameraCalibration():
 
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
     ############ to adapt ##########################
-    objp = np.zeros((4*6, 3), np.float32)
-    objp[:, :2] = np.mgrid[0:4, 0:6].T.reshape(-1, 2)
+    objp = np.zeros((8 * 5, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:8, 0:5].T.reshape(-1, 2)
     # multiplier les valeurs des 2 premières colones par 40
-    objp[:, :2] *= 40
+    # taille en mm des carres
+    objp[:, :2] *= 30
     #################################################
     # Arrays to store object points and image points from all the images.
     objpoints = []  # Store vectors of 3D points for all chessboard images (world coordinate frame)
     imgpoints = []  # Store vectors of 2D points for all chessboard images (camera coordinate frame)
     ############ to adapt ##########################
-    images = glob.glob('Images/chess/P30/*.jpg')
+    images = glob.glob('Images/chess/ImagesWeTook/*.jpg')
     #################################################
     for fname in images:
         # img = cv.imread(fname)
@@ -35,7 +37,7 @@ def CameraCalibration():
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         # Find the corners on the chessboard
         ############ to adapt ##########################
-        ret, corners = cv.findChessboardCorners(gray, (4, 6), None)
+        ret, corners = cv.findChessboardCorners(gray, (8, 5), None)
         #################################################
         print(ret)
         # If the corners are found by the algorithm, add object points, image points
@@ -45,20 +47,20 @@ def CameraCalibration():
             imgpoints.append(corners)
             # Draw the chessboard corners
             ############ to adapt ##########################
-            cv.drawChessboardCorners(img, (4, 6), corners2, ret)
+            cv.drawChessboardCorners(img, (8, 5), corners2, ret)
             #################################################
-            cv.namedWindow('img', 0 )
+            cv.namedWindow('img', 0)
             cv.imshow('img', img)
             cv.waitKey(500)
     cv.destroyAllWindows()
 
     # Perform camera calibration to return the camera matrix, distortion coefficients, rotation and translation vectors etc
     ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-    print('camraMatrix\n',mtx)
-    print('dist\n',dist)
+    print('camraMatrix\n', mtx)
+    print('dist\n', dist)
 
     ############ to adapt ##########################
-    img = cv.pyrDown(cv.imread('Images/chess/P30/IMG_20201206_093855.jpg'))
+    img = cv.pyrDown(cv.imread('Images/chess/ImagesWeTook/20220119_102941.jpg'))
     #################################################
     h, w = img.shape[:2]
     # get optimal camera matrix and a rectangular region of interest
@@ -87,6 +89,7 @@ def CameraCalibration():
 
     return newcameramtx
 
+
 def DepthMapfromStereoImages():
     ############ to adapt ##########################
     imgL = cv.pyrDown(cv.imread('Images/aloeL.jpg'))
@@ -95,39 +98,40 @@ def DepthMapfromStereoImages():
     # 
     window_size = 3
     min_disp = 16
-    num_disp = 112-min_disp
-    stereo = cv.StereoSGBM_create(minDisparity = min_disp,
-    numDisparities = num_disp,
-    blockSize = 16,
-    P1 = 8 * 3 * window_size ** 2,
-    P2 = 32 * 3 * window_size ** 2,
-    disp12MaxDiff = 16,
-    uniquenessRatio = 10,
-    speckleWindowSize = 100,
-    speckleRange = 32)
+    num_disp = 112 - min_disp
+    stereo = cv.StereoSGBM_create(minDisparity=min_disp,
+                                  numDisparities=num_disp,
+                                  blockSize=16,
+                                  P1=8 * 3 * window_size ** 2,
+                                  P2=32 * 3 * window_size ** 2,
+                                  disp12MaxDiff=16,
+                                  uniquenessRatio=10,
+                                  speckleWindowSize=100,
+                                  speckleRange=32)
     # 
     disparity = stereo.compute(imgL, imgR).astype(np.float32) / 16.0
     # 
     plt.figure('3D')
-    plt.imshow((disparity-min_disp)/num_disp,'gray')
+    plt.imshow((disparity - min_disp) / num_disp, 'gray')
     plt.colorbar()
     plt.show()
 
 
-def drawlines(img1,img2,lines,pts1,pts2):
+def drawlines(img1, img2, lines, pts1, pts2):
     ''' img1 - image on which we draw the epilines for the points in img2
         lines - corresponding epilines '''
-    r,c = img1.shape
-    img1 = cv.cvtColor(img1,cv.COLOR_GRAY2BGR)
-    img2 = cv.cvtColor(img2,cv.COLOR_GRAY2BGR)
-    for r,pt1,pt2 in zip(lines,pts1,pts2):
-        color = tuple(np.random.randint(0,255,3).tolist())
-        x0,y0 = map(int, [0, -r[2]/r[1] ])
-        x1,y1 = map(int, [c, -(r[2]+r[0]*c)/r[1] ])
-        img1 = cv.line(img1, (x0,y0), (x1,y1), color, 2)
-        img1 = cv.circle(img1,tuple(pt1),5,color,-1)
-        img2 = cv.circle(img2,tuple(pt2),5,color,-1)
-    return img1,img2
+    r, c = img1.shape
+    img1 = cv.cvtColor(img1, cv.COLOR_GRAY2BGR)
+    img2 = cv.cvtColor(img2, cv.COLOR_GRAY2BGR)
+    for r, pt1, pt2 in zip(lines, pts1, pts2):
+        color = tuple(np.random.randint(0, 255, 3).tolist())
+        x0, y0 = map(int, [0, -r[2] / r[1]])
+        x1, y1 = map(int, [c, -(r[2] + r[0] * c) / r[1]])
+        img1 = cv.line(img1, (x0, y0), (x1, y1), color, 2)
+        img1 = cv.circle(img1, tuple(pt1), 5, color, -1)
+        img2 = cv.circle(img2, tuple(pt2), 5, color, -1)
+    return img1, img2
+
 
 def StereoCalibrate(Cameramtx):
     ############ to adapt ##########################
@@ -160,13 +164,13 @@ def StereoCalibrate(Cameramtx):
     pts2 = np.int32(pts2)
 
     # 
-    img3 = cv.drawMatches(img1,kp1,img2,kp2,good, None, flags=2)
+    img3 = cv.drawMatches(img1, kp1, img2, kp2, good, None, flags=2)
     plt.imshow(img3)
     plt.show()
 
     # 
     E, maskE = cv.findEssentialMat(pts1, pts2, Cameramtx, method=cv.FM_LMEDS)
-    print('E\n',E)
+    print('E\n', E)
     # 
     retval, R, t, maskP = cv.recoverPose(E, pts1, pts2, Cameramtx, maskE)
     print('R\n', R)
@@ -181,75 +185,76 @@ def StereoCalibrate(Cameramtx):
 
     return pts1, pts2, F, maskF, FT, maskE
 
+
 def EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE):
     ############ to adapt ##########################
     img1 = cv.pyrDown(cv.imread('Images/leftT2.jpg', 0))
     img2 = cv.pyrDown(cv.imread('Images/rightT2.jpg', 0))
     #################################################
-    r,c = img1.shape
+    r, c = img1.shape
 
     # 
     pts1F = pts1[maskF.ravel() == 1]
     pts2F = pts2[maskF.ravel() == 1]
 
     # 
-    lines1 = cv.computeCorrespondEpilines(pts2.reshape(-1,1,2), 2,F)
-    lines1 = lines1.reshape(-1,3)
-    img5,img6 = drawlines(img1,img2,lines1,pts1F,pts2F)
+    lines1 = cv.computeCorrespondEpilines(pts2.reshape(-1, 1, 2), 2, F)
+    lines1 = lines1.reshape(-1, 3)
+    img5, img6 = drawlines(img1, img2, lines1, pts1F, pts2F)
     # 
-    lines2 = cv.computeCorrespondEpilines(pts1.reshape(-1,1,2), 1,F)
-    lines2 = lines2.reshape(-1,3)
-    img3,img4 = drawlines(img2,img1,lines2,pts2,pts1)
+    lines2 = cv.computeCorrespondEpilines(pts1.reshape(-1, 1, 2), 1, F)
+    lines2 = lines2.reshape(-1, 3)
+    img3, img4 = drawlines(img2, img1, lines2, pts2, pts1)
     plt.figure('Fright')
-    plt.subplot(121),plt.imshow(img5)
-    plt.subplot(122),plt.imshow(img6)
+    plt.subplot(121), plt.imshow(img5)
+    plt.subplot(122), plt.imshow(img6)
     plt.figure('Fleft')
-    plt.subplot(121),plt.imshow(img4)
-    plt.subplot(122),plt.imshow(img3)
+    plt.subplot(121), plt.imshow(img4)
+    plt.subplot(122), plt.imshow(img3)
 
     # 
     pts1 = pts1[maskE.ravel() == 1]
     pts2 = pts2[maskE.ravel() == 1]
     # 
-    lines1 = cv.computeCorrespondEpilines(pts2.reshape(-1,1,2), 2,FT)
-    lines1 = lines1.reshape(-1,3)
-    img5T,img6T = drawlines(img1,img2,lines1,pts1,pts2)
+    lines1 = cv.computeCorrespondEpilines(pts2.reshape(-1, 1, 2), 2, FT)
+    lines1 = lines1.reshape(-1, 3)
+    img5T, img6T = drawlines(img1, img2, lines1, pts1, pts2)
     plt.figure('FTright')
-    plt.subplot(121),plt.imshow(img5T)
-    plt.subplot(122),plt.imshow(img6T)
+    plt.subplot(121), plt.imshow(img5T)
+    plt.subplot(122), plt.imshow(img6T)
     # 
-    lines2 = cv.computeCorrespondEpilines(pts1.reshape(-1,1,2), 1,FT)
-    lines2 = lines2.reshape(-1,3)
-    img3T,img4T = drawlines(img2,img1,lines2,pts2,pts1)
+    lines2 = cv.computeCorrespondEpilines(pts1.reshape(-1, 1, 2), 1, FT)
+    lines2 = lines2.reshape(-1, 3)
+    img3T, img4T = drawlines(img2, img1, lines2, pts2, pts1)
     plt.figure('FTleft')
-    plt.subplot(121),plt.imshow(img4T)
-    plt.subplot(122),plt.imshow(img3T)
+    plt.subplot(121), plt.imshow(img4T)
+    plt.subplot(122), plt.imshow(img3T)
     plt.show()
 
     # 
-    retval, H1, H2 = cv.stereoRectifyUncalibrated(pts1, pts2, F, (c,r))
+    retval, H1, H2 = cv.stereoRectifyUncalibrated(pts1, pts2, F, (c, r))
     print(H1)
     print(H2)
     # 
-    im_dst1 = cv.warpPerspective(img1, H1, (c,r))
-    im_dst2 = cv.warpPerspective(img2, H2, (c,r))
+    im_dst1 = cv.warpPerspective(img1, H1, (c, r))
+    im_dst2 = cv.warpPerspective(img2, H2, (c, r))
     cv.namedWindow('left', 0)
     cv.imshow('left', im_dst1)
     cv.namedWindow('right', 0)
     cv.imshow('right', im_dst2)
     cv.waitKey(0)
 
+
 if __name__ == "__main__":
     cameraMatrix = CameraCalibration()
 
-    # cameraMatrix = np.array([[1, 0, 0],
-    #                       [0, 1, 0],
-    #                       [0, 0, 1]])
+    cameraMatrix = np.array([[1, 0, 0],
+                             [0, 1, 0],
+                             [0, 0, 1]])
     # dist = [[0, 0, 0, 0, 0]]
 
-    # pts1, pts2, F, maskF, FT, maskE = StereoCalibrate(cameraMatrix)
+    pts1, pts2, F, maskF, FT, maskE = StereoCalibrate(cameraMatrix)
 
-    # EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE)
+    EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE)
 
     # DepthMapfromStereoImages()
-
