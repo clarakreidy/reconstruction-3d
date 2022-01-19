@@ -15,6 +15,8 @@ import glob
 def CameraCalibration():
     # Set termination criteria. We stop either when an accuracy is reached or when
     # we have finished a certain number of iterations.
+    # we selected 30 iterations and an accuracy of 0.001
+    # we are telling the algorithm that we care both about number of iterations and accuracy (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER)
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
@@ -43,6 +45,7 @@ def CameraCalibration():
         # If the corners are found by the algorithm, add object points, image points
         if ret == True:
             objpoints.append(objp)
+            # refine corner location (to subpixel accuracy) based on criteria.
             corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             imgpoints.append(corners)
             # Draw the chessboard corners
@@ -142,10 +145,15 @@ def StereoCalibrate(Cameramtx):
     sift = cv.SIFT_create()
     # opencv 3.4
     # sift = cv.xfeatures2d.SURF_create()
-    # 
+    # find the keypoints and descriptors with SIFT
     kp1, des1 = sift.detectAndCompute(img1, None)
     kp2, des2 = sift.detectAndCompute(img2, None)
-    # 
+
+    ############## Using FLANN matcher ##############
+    # Each keypoint of the first image is matched with a number of
+    # keypoints from the second image. k=2 means keep the 2 best matches
+    # for each keypoint (best matches = the ones with the smallest
+    # distance measurement).
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
@@ -163,25 +171,36 @@ def StereoCalibrate(Cameramtx):
     pts1 = np.int32(pts1)
     pts2 = np.int32(pts2)
 
-    # 
+    # dessiner les points clefs qui match entre les 2 images
+    # flag = cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS = 2
     img3 = cv.drawMatches(img1, kp1, img2, kp2, good, None, flags=2)
+    # Show detected matches
     plt.imshow(img3)
     plt.show()
 
-    # 
+    # Calculates an essential matrix from the corresponding points in two images.
     E, maskE = cv.findEssentialMat(pts1, pts2, Cameramtx, method=cv.FM_LMEDS)
     print('E\n', E)
-    # 
+
+    # Recovers the relative camera rotation and the translation from an estimated essential matrix and the corresponding points in two images
     retval, R, t, maskP = cv.recoverPose(E, pts1, pts2, Cameramtx, maskE)
     print('R\n', R)
     print('t\n', t)
 
-    #
+    # Calculates a fundamental matrix from the corresponding points in two images.
     F, maskF = cv.findFundamentalMat(pts1, pts2, cv.FM_LMEDS)
     print('F\n', F)
 
     # Calcul de la matrice fondamentale à partir de la matrice essentielle
-    FT = F
+    R_theorique = np.identity(3)
+    t_theorique = np.array([[15, 0, 0]]).T  # on a 15 centimetres de translation
+    ex = np.array([
+        [0, -0, -0],
+        [0, 0, -1],
+        [0, 1, 0],
+    ])
+    FT = np.matmul(ex, Cameramtx)
+    print('FT\n', FT)
 
     return pts1, pts2, F, maskF, FT, maskE
 
@@ -193,18 +212,21 @@ def EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE):
     #################################################
     r, c = img1.shape
 
-    # 
+    # find the keypoints and descriptors with SIFT
     pts1F = pts1[maskF.ravel() == 1]
     pts2F = pts2[maskF.ravel() == 1]
 
-    # 
+    # Find epilines corresponding to points in right image (second image)
     lines1 = cv.computeCorrespondEpilines(pts2.reshape(-1, 1, 2), 2, F)
     lines1 = lines1.reshape(-1, 3)
+    # drawing its lines on left image
     img5, img6 = drawlines(img1, img2, lines1, pts1F, pts2F)
-    # 
+    # Find epilines corresponding to points in left image (first image)
     lines2 = cv.computeCorrespondEpilines(pts1.reshape(-1, 1, 2), 1, F)
     lines2 = lines2.reshape(-1, 3)
+    # drawing its lines on right image
     img3, img4 = drawlines(img2, img1, lines2, pts2, pts1)
+
     plt.figure('Fright')
     plt.subplot(121), plt.imshow(img5)
     plt.subplot(122), plt.imshow(img6)
@@ -235,6 +257,7 @@ def EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE):
     retval, H1, H2 = cv.stereoRectifyUncalibrated(pts1, pts2, F, (c, r))
     print(H1)
     print(H2)
+
     # 
     im_dst1 = cv.warpPerspective(img1, H1, (c, r))
     im_dst2 = cv.warpPerspective(img2, H2, (c, r))
@@ -246,11 +269,12 @@ def EpipolarGeometry(pts1, pts2, F, maskF, FT, maskE):
 
 
 if __name__ == "__main__":
-    cameraMatrix = CameraCalibration()
+    # cameraMatrix = CameraCalibration()
 
-    cameraMatrix = np.array([[1, 0, 0],
-                             [0, 1, 0],
-                             [0, 0, 1]])
+    cameraMatrix = np.array([
+        [1.50740955e+03, 0.00000000e+00, 9.99524372e+02],
+        [0.00000000e+00, 1.50792468e+03, 7.65799177e+02],
+        [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
     # dist = [[0, 0, 0, 0, 0]]
 
     pts1, pts2, F, maskF, FT, maskE = StereoCalibrate(cameraMatrix)
